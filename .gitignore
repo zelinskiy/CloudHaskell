@@ -25,3 +25,4 @@ tags
 /_site/
 /.dir-locals.el
 /.git/
+*.eventlog
