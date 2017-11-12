@@ -1,0 +1,734 @@
+% TODO:
+% Вычитка
+% Теоретический фундамент
+% 3 больших примера
+% прогнать проверку правописания
+%
+%
+
+\documentclass[12pt]{article}
+
+\usepackage{amsmath,amsthm,amssymb}
+\usepackage{mathtext}
+\usepackage[T1,T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[ukrainian]{babel}
+\usepackage{listingsutf8}
+\usepackage{titling}
+\usepackage{multicol}
+\usepackage{epigraph}
+\usepackage[sorting=none]{biblatex}
+\usepackage{tikz}
+
+\selectlanguage{ukrainian}
+\addbibresource{bibl.bib}
+
+\usepackage
+[
+        a4paper,
+        left=3cm,
+        right=3cm,
+]
+{geometry}
+
+
+\lstset{
+    basicstyle=\ttfamily,
+    inputencoding=utf8,
+    extendedchars=false,
+    keepspaces = true,
+    language=haskell,
+    tabsize=2,
+    % commentstyle=\color{gray},
+    % keywordstyle=\usefont{T2A}{fcr}{b}{n},
+    % backgroundcolor=\color{lightlightgray},
+    frame=single,
+    tabsize=2,
+    captionpos=b,
+    caption=\lstname,
+    breaklines=true,
+    breakatwhitespace=true,
+    showstringspaces=false,
+    showspaces=false,
+    showtabs=false,
+    columns=flexible,
+    literate={∀}{{$\forall$}}1{λ}{{$\lambda$}}1
+}
+
+\title{Розподілене конкурентне програмування 
+    за допомогою Cloud Haskell}
+\author{Микита Юрченко}
+\date{Складено \today}
+
+\setlength{\droptitle}{-10em}
+
+\begin{document}
+
+\setlength{\epigraphwidth}{.55\textwidth}
+
+\maketitle
+
+\tableofcontents
+
+\section{Вступ}
+%Для чого використовувати і коли застосовувати (клас задач, вимоги до задач)
+
+Cloud Haskell - це EDSL (Embedded Domain-Specific Language) для розробки розподілених відказостійких конкурентних додатків, заснований на моделі обміну повідомленнями, подібний Erlang OTP \cite{haskellInCloud}\cite{epsteinThesis} та MPI.\\ 
+
+Сучасні веб-додатки мають обробляти великі обсяги даних, тож виникає потреба не тільки в ефективному розподілені роботи між обчислювачами одного комп'ютера, а й між багатьма комп'ютерами, об'єднаними в кластер. Надвеликі обчислювальні кластери, які продають свої ресурси користувачам, дістали назву Хмари (Cloud).\\
+
+Традиційні підходи до конкурентного програмування на багатоядерних процесорах використовують спільну пам'ять. На відміну від них, модель акторів, яку імплементовано в Ерланзі, не дозволяє жодної імпліцитної комунікації між процесами. \textit{Абстрагування транспортного рівня від моделі виконання практично стирає принципову різницю між локальними та віддаленими обчислювачами}. Можна розробляти програму, використовуючи лише один комп'ютер, а потім, доклавши незначни зусилль, необмежено масштабувати її. Цей підхід Д. Армстронг назвав у своїй дисертації <<Abstracting out concurrency>>\cite{armstrongThesis}. Таким чином, хоча цей підхід цілком сприятливий для програмування одного комп'ютера, його справжня сила розкривається при роботі з розподіленими веб-серверами та кластерами для наукових обчислень.\\
+
+Сфера застосування Cloud Haskell дещо ширша, ніж в Ерлангу. Найбільш ефективно буде застосовувати CH для розробки алгоритмів, які передбачають великі незалежні обчислювання, наприклад:\\
+
+\begin{itemize}
+\item Великі дані
+\item Машинне навчання (нейронні мережі)
+\item Високонавантажені веб-додатки
+\item Відказостійкі розподілені системи
+\item Наукові обчислення
+\end{itemize}
+
+Cloud Haskell недоцільно використовувати для наступних задач:\\
+
+\begin{itemize}
+\item Додатки, які потребують сильної оптимізації під конкретне залізо
+\item Додатки, які активно взаємодіють з іншими мовами програмування
+\item Тісно зчеплені (tight coupling) підзадачі, які вимагають багато синхронізації
+\end{itemize}
+
+Деякі переваги Cloud Haskell порівняно з Erlang:\\
+\begin{itemize}
+\item Більш продуманий синтаксис
+\item Кращі бібліотеки
+\item Дозволяє користуватися роздільною пам'яттю на одній машині
+\item Типізовані канали
+\item Система типів
+\item Метапрограмування
+\item Користувацька серіалізація
+\end{itemize}
+
+На сьогодні, в багатьох популярних мовах програмування модель акторів також представлено у вигляді портованої бібліотеки Scala Akka. Порівняння трьох підходів наведено у таблиці нижче.
+
+\begin {table}
+\begin{center}
+\begin{tabular}{ c|c|c|c } 
+              & Erlang OTP  & Scala Akka           & Cloud Haskell            \\
+\hline
+Реліз         & 1987        & 2009                 & 2012                     \\ 
+
+Типізація     & Динамічна   & Дин. примітиви       & Повністю статична        \\ 
+
+Компіляція    & BEAM VM     & JVM                  & Нативний код             \\ 
+
+Серіалізація  & Автоматична & ???                  & Визначається користувачем\\ 
+              &             &                      & (або автоматична)        \\ 
+
+Використання  &             &                      &                          \\
+примітивів    & Неможливо   & ???                  & MVar, TVar               \\ 
+синхронізації &             &                      &                          \\
+
+\end{tabular}
+\caption {Порівняння Erlang, Scala та Haskell}
+\end{center}
+\end {table}
+
+\section{Інсталяція}
+%Які апаратні засоби та ПЗ потрібно, де його взяти, як встановити, як інтегрувати, наприклад з Visual Studio, якщо це можливо.
+
+Реферат було виконано з використанням ОС NixOS (GNU Linux) \cite{nixos}. Стек розробки, який використовує автор, є розповсюдженим серед програмістів на Haskell, але програмістам на мейнстрімових мовах може здатись незвичним.\\
+
+\begin{itemize}
+\item GNU Emacs 25 (з плагіном haskell-mode)
+\item Haskell Stack
+\item NixOS 17.03
+\item GHC 8.02
+\end{itemize}
+
+Засіб є досить високорівневим і не накладає специфічних вимог на апаратне забеспечення. Насправді, його можна підняти як на Raspberry Pi \cite{cloudPi}, так й на суперкомп'ютері Altamira \cite{Altamira}. Приклади складено автором на його домашньому AMD Phenom II X4 945 3.0 GHz з 4 Gb RAM. У разі потреби, конфігураційні файли автора можна знайти у \cite{dotfiles}\\
+
+На сьогодні, єдине, що непотрібно для початку роботи з Haskell - це Stack.\\
+
+\lstinline{[nik@nixos:~/projects]$ nix-env -iA nixos.haskellPackages.stack}\\
+
+Готовий проект можно завантажити за посиланням \cite{sources}. Кроки, необхідні для самостійного відтворення, буде наведено нижче.\\
+
+\lstinline{[nik@nixos:~/projects]$ stack new CloudRef simple}\\
+
+Буде створено проект з такою стуктурою:
+
+\begin{lstlisting}[language=bash, caption={Структура початкового проекту}]
+[nik@nixos:~/projects]$ tree CloudRef --charset=ascii
+CloudRef
+|-- CloudRef.cabal
+|-- LICENSE
+|-- README.md
+|-- Setup.hs
+|-- src
+|   `-- Main.hs
+`-- stack.yaml
+\end{lstlisting}
+
+Збудуймо цей проект.
+
+\begin{lstlisting}[language=bash, caption={Будування та запуск проекту}]
+[nik@nixos:~/projects/CloudRef]$ stack init
+[nik@nixos:~/projects/CloudRef]$ stack build
+[nik@nixos:~/projects/CloudRef]$ stack exec CloudRef
+\end{lstlisting}
+
+Має вивести до консолі \lstinline{"hello, world"}. Тепер маємо завантажити необхідні бібліотеки. Налаштуємо відповідні рядки у файлах \lstinline{stack.yaml} та \lstinline{CloudRef.cabal} згідно до приведених нижче лістингів, та перебудуємо проект за допомогою \lstinline{$ stack build}.\\
+
+\begin{lstlisting}[language=bash, caption={stack.yaml}]
+...
+extra-deps:
+- distributed-process-0.7.3
+- network-transport-tcp-0.5.1
+...
+nix:
+  enable: true
+\end{lstlisting}
+0
+\begin{lstlisting}[language=bash, caption={CloudRef.cabal}]
+...
+executable HelloCloud
+  hs-source-dirs:      src
+  main-is:             HelloCloud.hs
+  default-language:    Haskell2010
+  build-depends:       base >= 4.7 && < 5
+                     , distributed-process == 0.7.3
+                     , network-transport == 0.4.4.0
+                     , network-transport-inmemory == 0.5.2
+\end{lstlisting}
+
+Створимо \lstinline{src/HelloCloud.hs}, який просто виводить до консолі "Hello, Haskell!".\\
+
+\begin{lstlisting}{src/HelloCloud.hs}
+import Control.Distributed.Process
+import Control.Distributed.Process.Node 
+import Control.Concurrent
+import Network.Transport
+import Network.Transport.InMemory 
+
+main :: IO ()
+main = do
+  -- Створимо новий транспорт
+  t <- liftIO createTransport
+
+  -- Створимо нову локальну ноду
+  n <- newLocalNode t initRemoteTable
+
+  -- Запустимо на ній процес
+  forkProcess n $ do
+    say "Hello, Haskell!"
+
+  -- Чекаємо секунду, аби процес встиг
+  liftIO (threadDelay (10^6))
+
+  -- Акуратно закриваємо транспорт
+  closeTransport t
+
+\end{lstlisting}
+
+Виконаємо наш приклад за допомогою \lstinline{$ stack build && stack exec HelloCloud}. Має вивести до консолі щось, подібне до\\
+
+\begin{lstlisting}[language=bash, caption={Будування та запуск HelloCloud.hs}]
+...
+[nik@nixos:~/projects/CloudRef]$ stack build && stack exec HelloCloud
+Sat Nov 11 14:16:49 UTC 2017 pid://1:8: Hello, Haskell!
+\end{lstlisting}
+
+Кожного разу перебудовувати цілий проект, а потім шукати рядки з помилками досить незручно. Автор радить усім користуватися плагіном haskell-mode\cite{haskellModeManual} для текстового редактору Emacs\cite{emacs}, який можна просто завантажити за допомогою репозиторію MELPA прямо з самого Emacs\cite{haskellModeInstall}. 
+
+Відкрийте необхідний .hs файл та виконайте \lstinline{С-с С-l}. Має відкритися буфер інтерпретатору GHCi\cite{ghci}. З нього ви можете запускати функції, визначені та імпортовані в поточному файлі. щоб перезавантажити файл, достатньо повторити комбінацію \lstinline{С-с С-l}, або набравши :r в інтерпретаторі. 
+
+Насправді, ви можете користуватися інтерпретатором й без Emacs, прямо з консолі за допомогою команди \lstinline{$ stack ghci}. 
+
+Для профілювання нам стане у нагоді програма ThreadScope. Для її встановлення скористуємося \lstinline{$ nix-env -iA nixos.haskellPackages.threadscope}.
+
+Якщо все вийшло, то ми можемо вважати себе повністю готовими до занурення у світ Cloud Haskell.
+
+%Загальна теорія (в мови програмування – синтаксис мови, основні конструкції). В разі графічних карт – які типи пам’яті, рекомендації по їх застосуванню
+
+\section{Синтаксис та основні конструкції мови Haskell}
+
+Haskell - поліморфна компільована строга чисто функціональна лінива мова програмування.\\
+
+Головні властивості:
+\begin{enumerate}
+\item Вивід типів в стилі Дамаса-Хіндлі-Мілнера
+\item Поліморфізм вищих рангів
+\item Нестрога семантика, імплементована важким рантаймом на базі STG машини
+\item Алгебраїчні типи данних
+\end{enumerate}
+
+В цьому рефераті під Haskell ми маємо на увазі GHC Haskell, тобто реалізацію специфікації компілятором GHC (Glorious Glasgow Haskell Compiler).\\
+
+На відміну від Java або Rust, абсолютно неможливо людину, яка не має жодного досвіду програмування на ML-подібній мові, навчити писати на достатньому для Cloud Haskell рівні, просто виклавши <<деякі особливості синтаксису>>, або <<основні інтуїції>>.\\
+
+%Синтаксис Haskell зводиться до синтаксису System FC\cite{systemFC} - формальної системи поліморфного лямбда числення, яка розширює System F свідками приведення (Coercion).\\
+
+%Нижче приведено визначення виразу мови GHC Core, взяте з репозиторію вихідого коду GHC\cite{coreSource}.\\
+
+%\begin{lstlisting}{CoreSyn.hs}
+%data Expr b
+%  = Var   Id
+%  | Lit   Literal
+%  | App   (Expr b) (Arg b)
+%  | Lam   b (Expr b)
+%  | Let   (Bind b) (Expr b)
+%  | Case  (Expr b) b Type [Alt b]
+%  | Cast  (Expr b) Coercion
+%  | Tick  (Tickish Id) (Expr b)
+%  | Type  Type
+%  | Coercion Coercion
+%  deriving Data
+%\end{lstlisting}
+
+\subsubsection*{Типи та функції}
+
+Програмування на Haskell полягає в визначенні типів даних та функцій над ними. Наприклад, визначення типу натуральних чисел та їх складання:\\
+
+\begin{lstlisting}{src/HaskellIntro/Ex1.hs}
+{-# LANGUAGE GADTs #-}
+
+data N where
+  Z :: N
+  S :: N -> N
+
+add :: (N, N) -> N
+add (a, b) = case b of
+  S b' -> S (add (a, b'))
+  Z -> a
+
+five = add (S (S Z), (S (S (S Z))))
+\end{lstlisting}
+
+Типи визначаюься як множини їх значеннь. Значеннями типа є т.з. констуктори даних, в нашому випадку це Z та S. Майте на увазі, що зазвичай використовують скорочений синтаксис вигладу \lstinline{data N = Z | S N}. Типи даних є алгебраїчними - | можна розглядати як + (більш точно - як розмічене об'єднання множин), пробіл між аргументами конструктору - як * (точніше - як декартів добуток). Тож всі конструюються як суми добутків. Алгебраїчні типи є алгебраїчними настільки, що можна навіть брати їхню похідну. Наведемо в якості прикладу також визначення класичного АТД "Двійкове дерево": \lstinline{data BTree a = E | Node a (BTree a) (BTree a)}. Одним з елементів цього типу буде, наприклад, \lstinline{t1 = Node 2 (Node 1 E E) (Node 3 (Node 4 E E) E)}.
+
+Функції визначаються як рівняння, в яких зазвичай використовують техніку зіставлення зі зразком. Ці рівняння мають багато спільного зі звичними математичними рівняннями, наприклад (N, N) можна розглядати як декартів добуток множини натуральних чисел з собою. Цей приклад є дещо переускладненим - на початку зумисно приведено приклад анотації використання синтаксичного розширення.\\
+
+\subsubsection*{Класи типів}
+
+Можна розглядати класи типів як декотру аналогію інтерфейсу зі світу ООП\footnote{До речі, в мові Idris вони так і називаються.}. Нехай до класу типів \lstinline{Summable} входять всі типи, для яких ми визначимо операцію складання.\\
+
+\begin{lstlisting}{src/HaskellIntro/Ex3.hs}
+class Summable a where
+  add :: a -> a -> a
+\end{lstlisting}
+
+Тож визначимо двух представників цього класу типів.\\
+
+\begin{lstlisting}{src/HaskellIntro/Ex3.hs}
+instance Summable Int where
+  add a b = a + b
+
+instance Summable [a] where
+  add xs ys = xs ++ ys
+\end{lstlisting}
+
+Продемоструємо використання цієй конструкції. Програмістам на мейнстрімових мовах це має нагадати ad-hoc поліморфізм.\\
+
+\begin{lstlisting}{src/HaskellIntro/Ex3.hs}
+main = do
+  print (1 `add` 2)
+  print $ [1,2,3] `add` [4,5,6]
+\end{lstlisting}
+
+Цей приклад видасть помилку \lstinline{Ambiguous type variable}. Це означає, що Хаскель не може підставити конкретний тип замість типової змінної. Річ у тім, що операція складання сама визначена у термінах классу типів \lstinline{(+) :: Num a => a -> a -> a}. Хаскель підтримує перевантаження літералів. Тож маємо підказати компіляторові необхідний монотип:\\
+
+\begin{lstlisting}{src/HaskellIntro/Ex3.hs}
+main = do
+  print ((1 :: Int) `add` 2)
+  print $ [1,2,3] `add` [4,5,6]
+\end{lstlisting}
+
+Патерн <<візьми дві а-шки, та зроби з них нову>>, продемонстрований вище, є досить росповсюдженим як в програмуванні, так й в алгебрі. Як й усі найважливіші класи типів, його назва прийшла зі світу абстрактної алгебри - Моноїд\footnote{Це неправда. Для моноїду необхідний також нейтральний елемент $\epsilon$ (mempty), тож це лише полугрупа. Але історично полугрупа не знайшла широкого застосування в Хаскелі.} (Monoid з операцією mappend). Інші важливі класи типів - Functor, Monad, Applicative - теж мають алгебраїчне\footnote{точніше - теоретико-категорне} походження.
+
+\subsubsection*{Монади}
+
+Користуючись теорією категорій, визначити монаду тривіально просто - моноїд в категорії ендофункторів. Тут автор докладає на себе надлюдське зусилля, й втримується від виробництва ще одного "туторіала про монади" й обмежується наведенням основних визначень стандартної бібліотеки.
+
+\begin{lstlisting}{src/HaskellIntro/Ex3.hs}
+main = do
+  print ((1 :: Int) `add` 2)
+  print $ [1,2,3] `add` [4,5,6]
+\end{lstlisting}
+
+В подальшому буде наведено багато монадичного коду, записаного за допомогою do-нотації. Для дотримання чистоти мови код з зовнішніми ефектами (напр, виведення до консолі) відокремлено від чистого коду шляхом загортання його до монади IO. Зчитування імені з консолі та привітання:\\
+
+\begin{lstlisting}{src/HaskellIntro/Ex2.hs}
+main :: IO ()
+main = do
+  putStrLn "Insert your name:"
+  name <- getLine
+  putStrLn ("Hello, " ++ name ++ "!")
+\end{lstlisting}
+
+Зауважте, що це не є вбудованим <<синтаксичним Бантустаном>>, в якому мова перестає бути чистою - насправді, цей код розцукрується у щось, подібне:\\
+
+\begin{lstlisting}{src/HaskellIntro/Ex2.hs}
+main2 = putStrLn "Insert your name:"
+  >> getLine
+  >>= \name ->
+        putStrLn ("Hello, " ++ name ++ "!")
+\end{lstlisting}
+
+У спрощенному вигляді монаду IO можна представити як варіант монади State\footnote{Монада State слугує для }
+
+\begin{lstlisting}{src/HaskellIntro/Ex4.hs}
+main2 = putStrLn "Insert your name:"
+  >> getLine
+  >>= \name ->
+        putStrLn ("Hello, " ++ name ++ "!")
+\end{lstlisting}
+
+В подальшому матеріал буде викладено виходячи з того, що читач знайомий з синтаксисом, його основними розширеннями, стандартними алгебраїчними конструкціями (напр. монадою), та має достатній рівень експертизи з Haskell.\\
+
+
+
+\section{Основи Cloud Haskell}
+
+\subsection{Базові примітиви}
+
+\subsubsection*{Процеси та ноди, комунікація між ними.}
+
+\subsubsection*{Лінки та монітори, обробка збоїв}
+
+\subsubsection*{Типізовані канали}
+
+\subsubsection*{Клас типів Serializable}
+
+\subsubsection*{Асинхронність та футури}
+
+\subsubsection*{Supervision Trees}
+
+\subsubsection*{Unsafe функції}
+Unsafe примітиви дублюють основні функції. Якщо звичайні функції нормалізують повідомлення перед пересиланням, то їхні unsafe аналоги дозволяють передавати вказівник в межах локальної ноди. Можна використовувати тільки за умови повної впевненості у власному коді.
+
+\subsection{Серіалізація замикань}
+
+Виникає питання - як нам передавати функції між процесами? В Ерланзі, завдяки вірутальній машині, все є серіалізовним за замовчуванням, в тому числі й функції. Компілятор Haskell не надає подібних можливостей. Більш того, цей підхід може викликати певні складнощі. Що таке ці вільні змінні? Вони самі можуть бути функціями, тоді оточення цих функцій теж треба додати до повідомлення (власне, цьому це й називається замиканням). Програміст може випадково передати громадне повідомлення лише тому, що вільною змінною деякої невеликою функції є, наприклад, база даних. В лінивій мові все стає ще важчим через наявність санків.\\
+
+З цього випливає, що має сенс обмежити функції, які можна передавати. Давайте спробуємо зайти з іншого боку - які функції ми точно можемо передати? Чи можемо ми передати, наприклад, \lstinline{(+)}? Звісно, що так - ця функція завжди доступна в стандартній бібліотеці. Чи можемо ми передати замкнутий терм, до якого не входить жодна вільна змінна? Якщо один й тей самий бінарник виконується на іншому кінці, то ми можемо просто передати статичний вказівник на цей код. Будемо називати функцію S-зв'язаною (S-bounded), якщо всі вільні змінні в ній оголошено на верхньому рівні поточного модуля.\\ 
+%Сгенеруємо словник, в якому ключами будуть строки, а remotable функції цього модуля - значеннями. Щоб не змушувати користувача додавати кожного разу ці функції вручну, розробники Cloud Haskell скористалисявбудованим засобом метапрограмування Template Haskell. Для того, щоб помітити функцію \lstinline{f} для передачі, достатньо підключити модуль \lstinline{Control.Distributed.Process.Closure}, додати до файлу директиву компілятора \lstinline|{-# LANGUAGE TemplateHaskell #-}|, та дописати після оголошення функції \lstinline{$(remotable ['f])}.
+
+\subsection{Транспортний рівень}
+\subsubsection*{Абстрактний рівень}
+\subsubsection*{TCP}
+\subsubsection*{Local Network}
+\subsubsection*{CCI}
+
+\subsection{Теоретичне підгрунтя}
+
+\epigraph{Oh, yes, this is very $\pi$-calculus stuff!}{Simon Peyton-Jones\cite{cloudSLPJ}}
+
+За своєю сутністю, Cloud Haskell - це Erlang OTP для Haskell.
+
+Існують спроби\cite{cloudSemantics}\cite{haskellInCloud} побудувати математичну семантику примітивів Cloud Haskell.\\
+
+
+%(і подальші розділи, якщо необхідно: Приклади використання з додатками у вигляді повних проектів, з порівнянням зі стандартними засобами 
+\section{Порівняння зі стандартними засобами}
+Складемо функцію \lstinline{primeFactors} для розрахунку простих множників числа. 
+
+\begin{lstlisting}{src/CompareMethods.hs}
+factorize :: Integer -> Integer -> [Integer]
+factorize _ 1 = [] 
+factorize d n 
+    | d * d > n = [n]
+    | n `mod` d == 0 = d : factorize d (n `div` d)
+    | otherwise = factorize (d + 1) n
+
+primeFactors :: Integer -> [Integer]
+primeFactors = factorize 2
+\end{lstlisting}
+
+В якості важкого завдання, яке можна виконувати паралельно, нехай буде знаходження суми простих множників чисел від from включно до to включно.
+
+\begin{lstlisting}{src/CompareMethods.hs - Sequential}
+--Послідовне виконання
+main0 :: IO ()
+main0 = print $ sum $ map (sum . primeFactors) [from..to]
+\end{lstlisting}
+
+\begin{lstlisting}{src/CompareMethods.hs - Control.Concurrent}
+--Вбудовані засоби конкурентного програмування
+main1 :: IO ()
+main1 = do
+  chan <- newChan
+  
+  forM_ [from..to] $ \n ->
+    forkIO $ writeChan chan (sum (primeFactors n))
+
+  let waitThreads cnt acc = do
+        if cnt == to - from + 1
+          then return acc
+          else do
+          msg <- readChan chan
+          waitThreads (cnt + 1) (msg + acc)
+          
+  print =<< waitThreads 0 0
+
+\end{lstlisting}
+
+
+\begin{lstlisting}{src/CompareMethods.hs - STM}
+--Транзакційна пам'ять
+main2 :: IO ()
+main2 = do
+  acc <- atomically $ newTVar 0
+  cnt <- atomically $ newTVar 0
+  
+  forM_ [from..to] $ \n -> forkIO $ atomically $ do
+    acc0 <- readTVar acc
+    cnt0 <- readTVar cnt
+    writeTVar acc (acc0 + sum (primeFactors n))
+    writeTVar cnt (cnt0 + 1)
+
+  let waitThreads = do
+        cnt0 <- atomically $ readTVar cnt
+        if cnt0 == to - from + 1
+          then atomically $ readTVar acc
+          else threadDelay 100000 >> waitThreads
+          
+          
+  print =<< waitThreads
+\end{lstlisting}
+
+\begin{lstlisting}{src/CompareMethods.hs - Cloud Haskell}
+-- Засоби Cloud Haskell
+main3 :: IO ()
+main3 = do
+  t <- liftIO createTransport
+  node <- newLocalNode t initRemoteTable
+
+  done <- newEmptyMVar
+  
+  let masterWork c res = do
+        m <- expect :: Process (Integer, [Integer])
+        let res' = m:res
+        if c == to - from
+          then liftIO $ putMVar done ()
+          else masterWork (c+1) res'
+      
+  master <- forkProcess node (masterWork 0 [])
+  
+  forM_ [from..to] $ \n ->
+    forkProcess node $ do
+      send master (n, primeFactors n)
+
+  _ <- takeMVar done
+  putStrLn "DONE"
+  closeTransport t
+\end{lstlisting}
+
+Для запуску нам знадобляться такі імпорти:
+
+\begin{lstlisting}{src/CompareMethods.hs - imports}
+import Control.Distributed.Process hiding (newChan)
+import Control.Distributed.Process.Node 
+import Control.Concurrent
+import Network.Transport hiding (send)
+import Network.Transport.InMemory
+
+import Control.Monad
+import Control.Monad.STM
+import Control.DeepSeq
+import Control.Concurrent
+import Control.Concurrent.Chan
+import Control.Concurrent.STM.TChan
+import Control.Concurrent.STM
+import Control.Concurrent.STM.TVar
+\end{lstlisting}
+
+Додамо новий executable до файлу CloudRef.cabal:
+
+\begin{lstlisting}{CloudRef.cabal}
+executable CompareMethods
+  hs-source-dirs:      src
+  main-is:             CompareMethods.hs
+  default-language:    Haskell2010
+  ghc-options:         -threaded -eventlog -rtsopts
+  build-depends:       base >= 4.7 && < 5
+                     , distributed-process == 0.7.3
+                     , network-transport == 0.4.4.0
+                     , network-transport-tcp == 0.5.1
+                     , network-transport-inmemory == 0.5.2
+                     , deepseq
+                     , stm
+\end{lstlisting}
+
+%\lstinline{stack build && stack exec -- CompareMethods +RTS -lf -N4 -s}
+Для вимірювання та візуального аналізу роботи нашої програми будемо використовувати засіб ThreadScope. Збудуємо нашу програму 4 рази, кожного разу замінюючи метод \lstinline{main} на відповідний \lstinline{mainN} за допомогою \lstinline{stack build && stack exec -- CompareMethods +RTS -lf -N4 -s}. При цьому, будемо зберігати eventlog-и роботи виконавши \lstinline{mv CompareMethods.eventlog mainN.eventlog}. Тепер відкриємо по черзі eventlog-и \lstinline{threadscope mainN.eventlog}.
+
+Маємо такі результати:
+
+\section{Case Study 1 - }
+\section{Case Study 2 - }
+\section{Case Study 3 - }
+
+\section{Допоміжна довідка}
+
+\subsubsection*{Лямбда числення}
+
+Більш розгорнуте викладення можна знайти, наприклад у\cite{lambdaMoskvin}.\\
+
+Синтаксис лямбда числення задається наступною граматикою:
+\begin{lstlisting}[caption={Синтаксис простого безтипового лямбда числення}]
+Нескінченна перелічувана множина змінних:
+V ::= x | y | x1 | ... 
+
+Термом є змінна, абстракція, або аплікація:
+M, N ::= V
+     | (\V -> M)
+     | (M N)
+\end{lstlisting}
+
+При цьому, абстракція є правоасоціативною, аплікація - лівоасоциативною.\\
+
+Множина вільних змінних \lstinline{FV(M)} терму \lstinline{N} задається рекурентно:\\
+\begin{lstlisting}[caption={Вільні змінні}]
+FV(x) = {x}
+FV(\x -> P) = FV(M) \ {x}
+FV(P Q) = FV(P) ∪ FV (Q)
+\end{lstlisting}
+
+Вільна змінна не зв'язана жодною лямбда абстракцією, наприклад в термі \lstinline{(\f -> (\x -> f x))} всі змінні зв'язані, але з точки зору його внутрішнього терму \lstinline{(\x -> f x)} змінна y є вільною.\\
+
+Функція (тобто $\lambda$-терм) є замкненою, якщо множина її вільних змінних є пустою.
+
+Підстановкою терма замість змінної в термі визначають так:
+\begin{lstlisting}[caption={Вільні змінні}]
+x[x := N] = N
+y[x := N] = y
+(P Q)[x := N] = P[x := N] Q[x := N]
+(\x -> P)[x := N] = \x -> P
+(\y -> P)[x := N] = \y -> P[x := N]
+\end{lstlisting}
+
+Підстановка вважається правильною, якщо жодна вільна змінна не стає зв'язаною, зв'язана - вільною.\\
+
+Відношенням бета-редукції \lstinline{=>} називають таке найменше відношення на множині $\lambda$-термів, що \\
+\begin{itemize}
+    \item \lstinline{(\x -> P) Q => P[x:=Q]}
+    \item Якщо \lstinline{P => P'}, то \lstinline{\x -> P => \x -> P'}
+    \item Якщо \lstinline{P => P'}, то \lstinline{P Q => P' Q}
+    \item Якщо \lstinline{P => P'}, то \lstinline{Q P => Q P'}
+\end{itemize}
+
+Ліву частину редукції називають редексом, праву - згортком. Якщо терм не є редексом, то кажуть, що він знаходиться у нормальній формі.\\
+
+Багатошаговою бета-редукцією \lstinline{=>>} називають транзитивно-рефлексивне замикання \lstinline{=>}\\
+
+Бета-еквівалентністю називають транзитивно-рефлексивно-симетричне замикання \lstinline{=>}\\
+
+\subsubsection*{Замикання}
+Замиканням відношення $R$ відносно властивості $P$ називають таке мінімальне $R^{*}$, що $R \subset R^{*}$, та для будь якої пари $(x,y) \in R^{*}$ виконується $P(x,y)$. Під замиканням функції у функціональному програмуванні розуміють саму цю функцію разом з її оточенням, яке складається з її вільних змінних. Наприклад, замиканням функції \lstinline{\x -> (x z) (y x)} буде пара \lstinline{<(\x -> (x z) (y x)), [y; z]>}.\\
+
+\subsubsection*{Лінива семантика}
+Call-by-need семантика означає, що редуціюються лише ті терми, які потрібно, а не всі, на які вказав програміст. Продемонструємо це у GHCi\\
+
+\begin{lstlisting}[caption={Ліниві обчислення}]
+λ> :set +s
+λ> fac n = product [1..n]
+(0.00 secs, 0 bytes)
+λ> xs = replicate 10000 (fac 25000)
+(0.00 secs, 0 bytes)
+λ> length xs
+10000
+(0.01 secs, 1,052,640 bytes)
+λ> fac 25000 `mod` 2
+0
+(1.06 secs, 597,515,792 bytes)
+λ> sum xs `mod` 2
+0
+(1.93 secs, 1,010,760,824 bytes)
+\end{lstlisting}
+
+Таким чином, факторіал 25000! не вираховується тисячу разів, суттєво вкорочуючи час виконання програми. Зауважте також, що всі операції виконуються над необмеженим типом Integral, втрати даних через переповнення не виходить (на відміну від типу Int).\\
+
+Втім, хаскель має спеціальні засоби для вказання на строгий порядок редукцій.\\
+
+\subsubsection*{Переписування графів}
+Хаскель є системою лінивого переписування графів. Це означає, що кожну програму можна представити у вигляді графу, вузлами якого є санки(редекси), висячими вершинами - значення в нормальній формі. На кожному шазі виконання програми цей граф зменьшується (редуціюється). Пи цьому, синтаксично однакові вирази відображаються в єдиний вузол графу. Приклад редукції наведено у Рис. \ref{reduction1} на сторінці \pageref{reduction1}.\\
+
+\begin{figure}
+\centering
+
+\begin{tikzpicture}
+
+\node[shape=circle,draw=black] (A1) at (0,0) {add};
+\node[shape=circle,draw=black] (M) at (-1,-1) {mul};
+\node[shape=circle,draw=black] (A2) at (1,-2) {add};
+
+\node[shape=rectangle,draw=black] (N3) at (-2,-2) {3};
+\node[shape=rectangle,draw=black] (N1) at (2,-3) {1};
+\node[shape=rectangle,draw=black] (N2) at (0,-3) {2};
+
+\path [->] (A1) edge node[left] {} (M);
+\path [->] (A1) edge node[left] {} (A2);
+\path [->] (M) edge node[left] {} (A2);
+\path [->] (M) edge node[left] {} (N3);
+\path [->] (A2) edge node[left] {} (N1);
+\path [->] (A2) edge node[left] {} (N2);
+
+\end{tikzpicture}
+
+\vspace{20mm}
+
+\begin{tikzpicture}
+
+\node[shape=circle,draw=black] (A1) at (0,0) {add};
+\node[shape=circle,draw=black] (M) at (-1,-1) {mul};
+\node[shape=rectangle,draw=black] (A2) at (1,-2) {3};
+
+\node[shape=rectangle,draw=black] (N3) at (-2,-2) {3};
+
+\path [->] (A1) edge node[left] {} (M);
+\path [->] (A1) edge node[left] {} (A2);
+\path [->] (M) edge node[left] {} (A2);
+\path [->] (M) edge node[left] {} (N3);
+
+\end{tikzpicture}
+
+\vspace{20mm}
+
+\begin{tikzpicture}
+
+\node[shape=circle,draw=black] (A1) at (0,0) {add};
+\node[shape=rectangle,draw=black] (M) at (-1,-1) {9};
+\node[shape=rectangle,draw=black] (A2) at (1,-2) {3};
+
+\path [->] (A1) edge node[left] {} (M);
+\path [->] (A1) edge node[left] {} (A2);
+
+\end{tikzpicture}
+
+\vspace{20mm}
+
+\begin{tikzpicture}
+
+\node[shape=rectangle,draw=black] (A1) at (0,0) {27};
+
+\end{tikzpicture}
+
+\vspace{20mm}
+
+\caption{Редукція терму 
+\lstinline{(add (mul 3 (add 1 2)) (add 1 2))}
+} 
+\label{reduction1}
+\end{figure}
+
+
+
+\section{Висновок}
+%Чому Ви рекомендуєте (не рекомендуєте) використання цієї технології
+Я рекомендую використовувати Cloud Haskell тому що це як Ерланг тільки краще.
+
+\newpage
+
+\printbibliography[title={Перелік посилань}]
+
+\end{document}
