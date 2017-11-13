@@ -46,7 +46,6 @@ executable CompareMethods
   ghc-options:         -threaded
                        -eventlog
                        -rtsopts
-                       -with-rtsopts=-N4
   build-depends:       base >= 4.7 && < 5
                      , distributed-process == 0.7.3
                      , network-transport == 0.5.2
@@ -55,6 +54,17 @@ executable CompareMethods
                      , deepseq == 1.4.2.0
                      , stm == 2.4.4.1
 
+executable Armstrong
+  hs-source-dirs:      src
+  main-is:             Armstrong.hs
+  default-language:    Haskell2010
+  build-depends:       base >= 4.7 && < 5
+                     , distributed-process == 0.7.3
+                     , distributed-process-simplelocalnet == 0.2.4
+                     , network-transport == 0.5.2
+                     , deepseq == 1.4.2.0
+                     , binary == 0.8.3.0
+                     
 executable MapReduce
   hs-source-dirs:      src
   main-is:             MapReduce/SimpleLocalnet.hs
@@ -76,11 +86,11 @@ executable MapReduce
                      , network-transport == 0.5.2
                      , network-transport-tcp == 0.6.0
                      , network-transport-inmemory == 0.5.2
-                     , deepseq == 1.4.2.0
                      , containers == 0.5.7.1
                      , random == 1.1
-                     , distributed-process-simplelocalnet
+                     , distributed-process-simplelocalnet == 0.2.4
                      , array == 0.5.1.1
                      , distributed-static == 0.3.8
                      , bytestring == 0.10.8.1
                      , binary == 0.8.3.0
+                     

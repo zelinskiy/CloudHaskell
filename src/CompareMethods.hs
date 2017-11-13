@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 module Main where
 
+import System.Environment (getArgs)
 import Control.Distributed.Process hiding (newChan)
 import Control.Distributed.Process.Node 
 import Control.Concurrent
@@ -11,15 +12,12 @@ import Control.Monad
 import Control.Monad.STM
 import Control.DeepSeq
 import Control.Concurrent.STM
-
-import System.Environment (getArgs)
   
 divideList :: Int -> [a] -> [[a]]
 divideList n xs = divideList' xs
   where m = (length xs `div` n) + 1
         divideList' [] = []
         divideList' xs = take m xs : divideList' (drop m xs)
-        
 
 factorize :: Integer -> Integer -> [Integer]
 factorize _ 1 = [] 
@@ -43,26 +41,23 @@ main :: IO ()
 main = do
   args <- getArgs
   case args of
-    program : nthreads : from : to : [] ->
-      let nt = read nthreads
-          f = read from
-          t = read to
-      in case program of
-        "0" -> main0 f t
-        "1" -> main1 nt f t
-        "2" -> main2 nt f t
-        "3" -> main3 nt f t
-    
+    ["0"] -> print "a"
+    ["1"] -> print "a"
+    ["2"] -> print "a"
+    ["3"] -> print "a"
+    _ -> print "bad args"
 
--- nthreads = 10000
--- from = 10^9
--- to   = from + 10^5
+nthreads = 4
+from = 1
+to   = from + 100
 
 --Послідовне виконання
-main0 from to = print $ sum $ map (sum . primeFactors) [from..to]
+main0 :: IO ()
+main0 = print $ sum $ map (sum . primeFactors) [from..to]
 
 --Вбудовані засоби конкурентного програмування
-main1 nthreads from to = do
+main1 :: IO ()
+main1 = do
   chan <- newChan
   let works = divideList nthreads [from..to]
   
@@ -81,7 +76,8 @@ main1 nthreads from to = do
   print =<< waitThreads 0 0
 
 --Транзакційна пам'ять
-main2 nthreads from to = do  
+main2 :: IO ()
+main2 = do  
   acc <- atomically $ newTVar 0
   cnt <- atomically $ newTVar 0
   let works = divideList nthreads [from..to]
@@ -105,7 +101,8 @@ main2 nthreads from to = do
   print =<< waitThreads
 
 -- Засоби Cloud Haskell
-main3 nthreads from to = do
+main3 :: IO ()
+main3 = do
   t <- liftIO createTransport
   node <- newLocalNode t initRemoteTable
   res <- newEmptyMVar
