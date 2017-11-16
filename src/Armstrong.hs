@@ -1,22 +1,22 @@
-{-# LANGUAGE DeriveGeneric #-}
-
-module Main where
-
+import System.Environment (getArgs)
 import Control.Distributed.Process
--- import Control.Distributed.Process.Node 
--- import Control.Concurrent
--- import Network.Transport
--- import Network.Transport.InMemory
+import Control.Distributed.Process.Node (initRemoteTable)
+import Control.Distributed.Process.Backend.SimpleLocalnet
 
-import Data.Binary
-import Data.Typeable
-import GHC.Generics (Generic)
+master :: Backend -> [NodeId] -> Process ()
+master backend slaves = do
+  liftIO . putStrLn $ "Slaves: " ++ show slaves
+  terminateAllSlaves backend
 
-data CounterMessage = CounterQuery ProcessId
-                    | CounterShutdown
-                    | CounterIncrement
-                    deriving (Generic, Typeable)
+main :: IO ()
+main = do
+  args <- getArgs
 
-instance Binary CounterMessage
+  case args of
+    ["master", host, port] -> do
+      backend <- initializeBackend host port initRemoteTable
+      startMaster backend (master backend)
+    ["slave", host, port] -> do
+      backend <- initializeBackend host port initRemoteTable
+      startSlave backend
 
-main = putStrLn "OK"

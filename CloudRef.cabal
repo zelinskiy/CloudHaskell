@@ -38,6 +38,7 @@ executable HelloCloud
                      , distributed-process == 0.7.3
                      , network-transport == 0.5.2
                      , network-transport-inmemory == 0.5.2
+                     
 
 executable CompareMethods
   hs-source-dirs:      src
@@ -59,7 +60,7 @@ executable Armstrong
   main-is:             Armstrong.hs
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
-                     , distributed-process == 0.7.3
+                     , distributed-process == 0.7.3                     
                      , distributed-process-simplelocalnet == 0.2.4
                      , network-transport == 0.5.2
                      , deepseq == 1.4.2.0

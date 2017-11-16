@@ -18,10 +18,12 @@ mapperProcess (master, workQueue, mrClosure) = do
     go us mr = do
       -- Просимо роботи в черги
       send workQueue us
+      say "Hello"
 
       -- Чекаємо на відповідь
       receiveWait
-        [ match $ \(key, val) -> send master (mrMap mr key val) >> go us mr
+        [ match $ \(key, val) -> send master (mrMap mr key val)
+                                 >> go us mr
         , match $ \()         -> return ()
         ]
 
@@ -51,5 +53,5 @@ distrMapReduce mrClosure mappers input = do
 
   partials <- replicateM (Map.size input) expect
 
-  -- Маємо єдиний редеуктор на цій ноді
+  -- Маємо єдиний редуктор на цій ноді
   return (reducePerKey mr . groupByKey . concat $ partials)
