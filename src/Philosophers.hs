@@ -29,7 +29,7 @@ think p = do
   liftIO $ threadDelay $ r * 100
 
 eat :: Philosopher -> Fork -> Fork -> Process ()
-eat p f1 f2 = do
+eat p _ _ = do
   say $ p ++ " is eating"
   r <- liftIO $ randomRIO (1,100)
   liftIO $ threadDelay $ r * 100

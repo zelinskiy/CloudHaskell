@@ -1,4 +1,3 @@
--- | Monomorphic "single-shot" distributed implementation of map-reduce
 module MapReduce.MonoDistrMapReduce (distrMapReduce, __remoteTable) where
 
 import Data.Map (Map)
