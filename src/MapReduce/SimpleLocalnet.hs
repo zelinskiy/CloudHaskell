@@ -24,17 +24,16 @@ main = do
     -- Локальне рахування слів
     "local" : "count" : files -> do
       input <- constructInput files
-      print $ take 100 $ sortBy (flip compare `on` snd)
-        $ toList $ CountWords.localCountWords input
+      print $ CountWords.localCountWords input
 
     -- Розподілений підрахунок слів
     "master" : host : port : "count" : files -> do
       input   <- constructInput files
       backend <- initializeBackend host port rtable
       startMaster backend $ \slaves -> do
+        say "Begin"
         result <- CountWords.distrCountWords slaves input
-        liftIO $ print $ take 100 $ sortBy (flip compare `on` snd)
-          $ toList $ CountWords.localCountWords input
+        liftIO $ print $ result
 
     -- slave
     "slave" : host : port : [] -> do
