@@ -52,7 +52,8 @@ distrMapReduce mrClosure mappers input = do
 
   -- Запускаємо мапери
   say "Waking up mappers..."
-  forM_ mappers $ \nid -> spawn nid ($(mkClosure 'mapperProcess) (master, workQueue, mrClosure))
+  forM_ mappers $ \nid -> do
+    spawn nid ($(mkClosure 'mapperProcess) (master, workQueue, mrClosure))
 
   partials <- replicateM (Map.size input) expect
 

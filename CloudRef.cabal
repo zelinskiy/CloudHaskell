@@ -68,6 +68,8 @@ executable Armstrong
                      , network-transport == 0.5.2
                      , deepseq == 1.4.2.0
                      , binary == 0.8.3.0
+                     , network-transport-tcp == 0.6.0
+                     , bytestring == 0.10.8.1
                      
 executable MapReduce
   hs-source-dirs:      src
