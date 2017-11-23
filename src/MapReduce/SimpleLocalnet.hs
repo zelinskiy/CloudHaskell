@@ -1,14 +1,12 @@
 import System.Environment (getArgs)
-import System.IO
-import Control.Applicative
-import Control.Monad
-import System.Random
 import Control.Distributed.Process
 import Control.Distributed.Process.Node (initRemoteTable)
 import Control.Distributed.Process.Backend.SimpleLocalnet
-import Data.Map (Map)
+import Data.Map (Map, toList)
 import Data.Array (Array, listArray)
 import qualified Data.Map as Map (fromList)
+import Data.List(sortBy)
+import Data.Function (on)
 
 import qualified MapReduce.CountWords as CountWords
 import qualified MapReduce.MonoDistrMapReduce as MonoDistrMapReduce
@@ -26,7 +24,8 @@ main = do
     -- Локальне рахування слів
     "local" : "count" : files -> do
       input <- constructInput files
-      print $ CountWords.localCountWords input
+      print $ take 100 $ sortBy (flip compare `on` snd)
+        $ toList $ CountWords.localCountWords input
 
     -- Розподілений підрахунок слів
     "master" : host : port : "count" : files -> do
@@ -34,7 +33,8 @@ main = do
       backend <- initializeBackend host port rtable
       startMaster backend $ \slaves -> do
         result <- CountWords.distrCountWords slaves input
-        liftIO $ print result
+        liftIO $ print $ take 100 $ sortBy (flip compare `on` snd)
+          $ toList $ CountWords.localCountWords input
 
     -- slave
     "slave" : host : port : [] -> do
