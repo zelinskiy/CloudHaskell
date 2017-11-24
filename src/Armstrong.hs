@@ -2,7 +2,6 @@
 
 import System.Environment (getArgs)
 import Control.Distributed.Process
--- import Control.Distributed.Process.Closure
 import Control.Distributed.Process.Node hiding (newLocalNode)
 import Control.Distributed.Process.Backend.SimpleLocalnet
 import Control.Monad
