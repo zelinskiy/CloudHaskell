@@ -31,11 +31,9 @@ mapperProcess :: forall k1 v1 k2 v2 v3.
 mapperProcess dictIn dictOut (master, workQueue) mr = getSelfPid >>= go
   where
     go us = do
-      -- Ask the queue for work
       say "Asking for work..."
       send workQueue us
 
-      -- Wait for a reply; if there is work, do it and repeat; otherwise, exit
       receiveWait
         [ matchDict dictIn $ \(key, val) -> do
             say "Mapping..."
@@ -67,7 +65,9 @@ mapperProcessClosure dictIn dictOut mr master workQueue =
         staticDecode $(mkStatic 'sdictProcessIdPair)
 
 distrMapReduce :: forall k1 k2 v1 v2 v3 a.
-                  (Serializable k1, Serializable v1, Serializable k2, Serializable v2, Serializable v3, Ord k2)
+                  (Serializable k1, Serializable v1,
+                   Serializable k2, Serializable v2,
+                   Serializable v3, Ord k2)
                => Static (SerializableDict (k1, v1))
                -> Static (SerializableDict [(k2, v2)])
                -> Closure (MapReduce k1 v1 k2 v2 v3)
@@ -88,16 +88,13 @@ distrMapReduce dictIn dictOut mr mappers p = do
               send them (key, val)
               go
             Nothing -> do
-              -- Tell the mappers to terminate
               replicateM_ (length mappers) $ do
                 them <- expect
                 send them ()
 
-              -- Tell the master that the slaves are terminated
               send master ()
     go
 
-  -- Start the mappers
   say "Waking up mappers..."
   let workQueuePid = sendPortProcessId (sendPortId workQueue)
   forM_ mappers $ \nid ->
@@ -105,19 +102,15 @@ distrMapReduce dictIn dictOut mr mappers p = do
 
   let iteration :: Map k1 v1 -> Process (Map k2 v3)
       iteration input = do
-        -- Make work available to the mappers
         mapM_ (sendChan workQueue . Just) (Map.toList input)
 
-        -- Wait for the partial results
         partials <- replicateM (Map.size input) expect
 
-        -- We reduce on this node
         say "Reducing..."
         return (reducePerKey mr' . groupByKey . concat $ partials)
 
   result <- p iteration
 
-  -- Terminate the wrappers
   sendChan workQueue Nothing
   expect :: Process ()
 
